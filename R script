@@ -49,7 +49,7 @@ Emulator_1D <- function(xP,       # total inputs we have
 }
 
 
-#Plotting function:
+# Plotting Emulator result function:
 plot_BL_emulator <- function(
     em_out,
     xP,
@@ -106,11 +106,129 @@ plot_BL_emulator <- function(
   }
 }
 
+# Plotting History Matching result function:
+plot_1D_Implausibility <- function(
+    Implaus,          # Implausibility Measurement
+    imp_cutoff = 3,   # "non-implausible" cutoff point
+    xP,               # All input
+    maintitle = NULL,
+    colscheme = NULL){
+  
+  imp_breaks <- c(seq(0,2.8,0.2),
+                  seq(3,9.5,0.5),
+                  10, Inf)   # colour steps for the implausibility measurement result
+  
+  imp_cut_index <- cut(Implaus, imp_breaks, labels = F)
+  
+  if (!is.null(colscheme)) {
+    cols <- colscheme(n = length(imp_breaks)-1, begin = 0, end = 1)
+  } # assign reduced "turbo" colours
+  
+  else{
+    cols <- rainbow(38)
+  }
+
+  # plot the line of the implausibility measure I(x) based on x:
+  plot(xP, Implaus, ylim = c(0,30), ty = 'l', lwd = 2, 
+       xlab = 'Input Parameter x', ylab = 'Implausibility Measure',
+       main = maintitle) 
+  
+  # Horizontal line of the non-implausible level:  
+  abline(h = imp_cutoff, col = 'green', lwd = 2) 
+  
+  rect_wid <- 1/(length(xP)-1) # set up simple rectangles to colour x-axis
+  
+  points(x = xP, rep(0, length(xP)), col = cols[imp_cut_index], pch=15, cex=1)
+  
+  #abline(h = 0, col = 1, lwd = 1)
+  
+  legend('topright', legend = c('Implausibility Measure I(x)', 
+                                'Non-Implausible cutoff line = 3.0'),
+         lty = c(1,1), col = c('black', 'green'), lwd = 2, cex = 0.5)
+  
+}
+
+# Plotting function that embeds the result from History Matching to the E_D[f(x)]:
+plot_BL_emulator_V2_implau <- function(
+    em_out,               # emulator result from function Emulator_1D()
+    xP,                   # total inputs we have
+    xD,                   # some running inputs we want to test
+    D,                    # model's output for some running inputs xD
+    maintitle = NULL,
+    z = NULL,             # the observation data
+    sigma_e = NULL,       # the observation error
+    sigma_epsilon = NULL, # the model's discrepancy
+    plot_true = FALSE,    # Never plot the true functions unless it is TRUE
+    Implaus,              # the implausibility measurement result
+    colscheme = NULL,
+    ...){
+  
+  plot(xP, em_out[[1]], ylim = c(-1.5, 1.2),
+       type = 'l', col = 'blue', 
+       xlab="Input parameter x",ylab="Output f(x)",main=maintitle)
+  
+  if (plot_true == TRUE){
+    lines(xP, toy_model2(xP), lwd = 2, lty = 1) 
+    # lty指定线条type，1 = 实线，2 = ,,, 
+  }  
+  
+  lines(xP, em_out[[1]] + 3 * sqrt(em_out[[3]]), 
+        col = 'red', lwd = 2.5) #可以一张图里绘制多条直线，line只能画一条
+  lines(xP, em_out[[1]] - 3 * sqrt(em_out[[3]]), col = 'red', lwd = 2.5)
+  
+  
+  #plot the runs (the tested points we ran already):
+  points(xD, D, pch = 21, col = 1, bg = 'green', cex = 1.5)
+  
+  # Plot the Observed data plus errors due to observations and Model's Discrepancy
+  if (is.null(z) == FALSE){
+    abline(h = z, lwd = 1.4)
+    abline(h = z + 3*sqrt(sigma_e + sigma_epsilon), lty = 2, lwd = 1.2)
+    abline(h = z - 3*sqrt(sigma_e + sigma_epsilon), lty = 2, lwd = 1.2)
+  }
+  
+  if (plot_true == F){
+    legend('topright', legend = c("Emulator Expectation", 
+                                  "Emulator Prediction Interval", 
+                                  "True Function f(x)", 
+                                  "Model Evaluated Points"),
+           lty = c(1,1,1,NA), pch = c(NA, NA, NA, 16), 
+           col=c("blue","red","yellow","green"),lwd=2.5,pt.cex=0.6, cex = 0.4)
+  }
+  
+  if (!is.null(z)){
+    legend('topright', legend = c("Emulator Expectation", 
+                                  "Emulator Prediction Interval", 
+                                  "Model Evaluated Points", 
+                                  "Observation z at 0.75",
+                                  "Observation Error (3-sigma) Interval"),
+           lty = c(1,1,NA,1,2), pch = c(NA, NA, 16, NA, NA), 
+           col=c("blue","red","green","black", "black"),
+           lwd=c(2.5,2.5,NA,1.4,1.2), pt.cex=0.6, cex = 0.4)
+  }
+  
+  imp_breaks <- c(seq(0,2.8,0.2),
+                  seq(3,9.5,0.5),
+                  10,Inf)   # colour steps for imp
+  
+  imp_cut_index <- cut(Implaus, imp_breaks, labels = F)
+  
+  if (!is.null(colscheme)) {
+    cols <- colscheme(n = length(imp_breaks)-1, begin = 0, end = 1)
+  }
+  # assign reduced "turbo" colours
+  else{
+    cols <- rainbow(38)
+  }
+  #abline(h = imp_cutoff, col = 'green', lwd = 2) 
+  points(x = xP, rep(-1.4, length(xP)), col = cols[imp_cut_index], pch=15, cex=1)
+}
+
 # Setting up input we need:
 xP <- seq(0,3,length = 100) # total inputs we have
 xD <- seq(0,3,length = 6)   # some running inputs we want to test
-f_x <- toy_model(xP)       # true model's output
-D <- toy_model(xD)         # model's output for some running inputs
+f_x <- toy_model(xP)        # true model's output
+D <- toy_model(xD)          # model's output for some running inputs
 sigma <- 1                  # emulator's prior belief for sigma
 theta <- 1                  # emulator's prior belief for theta
 E_f <- 0                    # prior of the expectation of the simulator f(x), E[f(x)]
@@ -135,5 +253,57 @@ points(x = xD, y=rep(0,length(xD)), col='black', pch=21, bg='green')
 # $I^2(x) = \frac{(\text{E}_D[f(x)] - z)^2}{\text{Var}_D[f(x)]+\text{Var}[e]+\text{Var}[\epsilon]}, \text{where} \space \text{Var}[e] = \sigma_e^2, \text{Var}[\epsilon]=\sigma_\epsilon^2$
 
 Implaus <- sqrt((emout[[1]] - z)^2/(emout[[3]]+sigma_e^2+sigma_epsilon^2))
-range(Implaus); length(Implaus)
 
+# Corresponding Visualisation of Wave 1 E_D[f(x)] and the corresponding implausibility measure:
+plot_BL_emulator_V2_implau(em_out = emout, xP = xP, xD = xD, D = D, 
+                           maintitle = 
+                             'Emulator Prediction with Implausibility Measure at z = 0.75', z = 0.75, sigma_e = sigma_e, sigma_epsilon = 0, 
+                           plot_true = TRUE, Implaus = Implaus,
+                           colscheme = turbo)
+
+
+# Preparing for Wave 2 emulation based on the result of Wave 1 History Matching above:
+
+# Create a list for the whole input xP with the corresponding Implausibility measurement:
+xP_implausibility_list <- list('Input' = xP, 'Implausibility' = Implaus)
+
+# Find non-implausible running inputs based on previous Implausibility measurement:
+xD_non_implau <- xP[which(xP_implausibility_list$Implausibility <= 3)]
+
+# Create new running inputs xD for Wave 2 emulation:
+xD_wave2 <- c(xD,xD_non_implau) 
+
+# Wave 2 BLA Emulation:
+xD_wave2 <- c(xD,xD_non_implau) 
+D_wave2 <- toy_model2(xD_wave2)
+emout_wave2 <- Emulator_1D(xP = xP, xD = xD_wave2, D = D_wave2)
+adj_var_bla <- emout_wave2[[2]] # Var_D[f(x)]
+
+# Plot the Wave 2 emulator result:
+plot_BL_emulator(em_out = emout_wave2, xP = xP, xD = xD_wave2, D = D_wave2, 
+                 maintitle =
+                      "Emulator's Prediction vs Model's Real Function Wave 2", 
+                 z = z, sigma_e = 0.005, sigma_epsilon = 0, 
+                 plot_true = T) 
+
+# Implausibility Measure for wave 2:
+z <- 0.75
+Implaus_wave2 <- sqrt((emout_wave2[[1]] - z)^2/
+                        (emout_wave2[[3]]+sigma_e^2+sigma_epsilon^2))
+
+# Plot new Implausibility Measure for wave 2:
+plot_1D_Implausibility(Implaus = Implaus_wave2, imp_cutoff = 3, xP = xP, 
+                       colscheme = turbo,
+                       maintitle = 'Implausibility Plot for each input by Wave 2')
+
+# Plot the Wave 2 BLA emulation result with corresponding Implausibility Measure
+plot_BL_emulator_V2_implau(em_out = emout_wave2, xP = xP, xD = xD_wave2, 
+                           D = D_wave2, 
+                           maintitle = 
+                             'Wave 2 BLA Emulator Prediction with Implausibility at z = 0.75', z = 0.75, sigma_e = 0.005, sigma_epsilon = 0, 
+                           plot_true = TRUE, Implaus = Implaus_wave2, 
+                           colscheme = turbo)
+
+# Plot Wave 2 BLA Var_D[f(x)], but posterior variance only instead of the whole covariance matrix:
+plot(x = xP, y = emout_wave2[[3]], type = 'l', xlab='x', ylab = 'Variance for each x',lwd=2,col='violetred1',ylim=c(0,0.005))
+points(x = xD_wave2, y=rep(0,length(xD_wave2)), col='black', pch=21, bg='green')
