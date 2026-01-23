@@ -1,0 +1,71 @@
+# install.packages("plgp") # Run this line if you did not install the package "plgp"
+library("plgp")
+
+# Toy model f(x) = sin (2*pi*x)
+toy_model <- function(x) sin(2*pi*x)
+
+# BLA Emulator's Construction:
+Emulator_1D <- function(xP,       # total inputs we have
+                        xD,       # some running inputs we want to test
+                        D,        # model's output for running inputs xD
+                        E_f = 0,  # prior of the expectation of the simulator f(x), E[f(x)]
+                        sigma = 1,# emulator's prior belief for scale parameter sigma
+                        theta = 1 # emulator's prior belief for lengthscale parameter theta
+){
+  library(plgp)
+  n <- length(D)
+  m <- length(xP)
+  eps <- sqrt(.Machine$double.eps)
+
+  # Construct a function to compute the Gaussian kernel-based covariance matrix:
+  Cov_fx_fxprime <- function(x, xprime){
+    sigma^2 * exp(-distance(x, xprime)/(theta^2))
+  }
+
+  # Covariance matrix Var[D] for our running input:
+  Var_D <- Cov_fx_fxprime(xD,xD) + diag(eps, nrow = n, ncol = n)
+
+  # Prior expectation for output from running xD, i.e. E[D]
+  E_D <- rep(E_f, n) 
+
+  # Cov[f(x), D]
+  Cov_fx_D <- Cov_fx_fxprime(xP, xD)
+
+  # Var[f(x)]
+  Var_fx <- sigma
+
+  # Posterior Adjusted expectation wrt D, i.e. E_D[f(x)]:
+  # solve() is equivalent to Cholesky decomposition: chol2inv(chol(Var_D)) to compute the target inverse matrix, both could work.
+  # Emulator_Expectation <- E_f + Cov_fx_D %*% chol2inv(chol(Var_D)) %*% (D - E_D)
+  Emulator_Expectation <- E_f + Cov_fx_D %*% solve(Var_D) %*% (D - E_D)
+
+  # Posterior Adjusted variance wrt D, i.e. Var_D[f(x)]
+  # Emulator_Variance <- Var_fx - Cov_fx_D %*% chol2inv(chol(Var_D)) %*% t(Cov_fx_D)
+  Emulator_Variance <- Var_fx - Cov_fx_D %*% solve(Var_D) %*% t(Cov_fx_D)
+
+  diag_Emulator_Variance <- diag(Emulator_Variance)
+  
+  return(list('E_D[f(x)]' = Emulator_Expectation, 
+              'Var_D[f(x)]' = Emulator_Variance, 
+              'Diag(Var_D[f(x)])' = diag_Emulator_Variance))
+}
+
+# Setting up input we need:
+xP <- seq(0,3,length = 100) # total inputs we have
+xD <- seq(0,3,length = 6)   # some running inputs we want to test
+f_x <- toy_model(xP)        # true model's output
+D <- toy_model(xD)          # model's output for some running inputs
+sigma <- 1                  # emulator's prior belief for sigma
+theta <- 1                  # emulator's prior belief for theta
+E_f <- 0                    # prior of the expectation of the simulator f(x), E[f(x)]
+Var_f <- sigma              # prior of the variance of simulator f(x), Var[f(x)]
+sigma_e <- 0.005            # observation error
+sigma_epsilon <- 0          # model's discrepancy
+z <- 0.75                   # observation/target signal
+
+# BLA emulation result (including E_D[f(x)], Var_D[f(x)]):
+emout <- Emulator_1D(xP = xP,xD = xD, D = D, E_f = 0, sigma = 1, theta = 1)
+
+# Implausibility Measure:
+Implaus <- sqrt((emout[[1]] - z)^2/(emout[[3]]+sigma_e^2+sigma_epsilon^2))
+
